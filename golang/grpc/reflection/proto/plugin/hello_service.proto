@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package reflect.server;
+
+option go_package = "proto/plugin";
+
+message HelloRequest {
+    string name = 1;
+    int32 age = 2;
+}
+
+message HelloResponse {
+    string greeting_msg = 1;
+}
+
+service HelloService {
+    rpc Hello(HelloRequest) returns (HelloResponse);
+}
