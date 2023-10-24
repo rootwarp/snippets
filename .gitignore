@@ -1,0 +1,4 @@
+*.swp
+*.swpo
+
+**/build/
