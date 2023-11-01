@@ -2,32 +2,51 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 
+	//"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/grpcreflect"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/reflection/grpc_reflection_v1"
-	"google.golang.org/protobuf/reflect/protodesc"
-	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/dynamicpb"
+
 	//"google.golang.org/protobuf/encoding/protojson"
+	//"google.golang.org/protobuf/reflect/protodesc"
+	// "google.golang.org/protobuf/types/descriptorpb"
 
 	"github.com/rootwarp/snippets/golang/grpc/reflection/proto/agent"
 )
 
+var (
+	ErrServiceNotFound = errors.New("cannot find service")
+)
+
 type reflectionHandler struct {
-	inputSpecs  map[string]map[string]*desc.MessageDescriptor
-	outputSpecs map[string]map[string]*desc.MessageDescriptor
+	ServiceSpecs map[string]serviceMeta
+}
+
+type serviceMeta struct {
+	Address   string
+	Functions map[string]funcMeta
+}
+
+type funcMeta struct {
+	InDesc  *desc.MessageDescriptor
+	OutDesc *desc.MessageDescriptor
 }
 
 func (r *reflectionHandler) Query(ctx context.Context, name, address string, port int) error {
 	fmt.Println("Query")
 
 	host := fmt.Sprintf("%s:%d", address, port)
-	conn, err := grpc.Dial(host, grpc.WithInsecure())
+	cred := insecure.NewCredentials()
+	conn, err := grpc.Dial(host, grpc.WithTransportCredentials(cred))
 	if err != nil {
 		return err
 	}
@@ -79,65 +98,69 @@ func (r *reflectionHandler) Query(ctx context.Context, name, address string, por
 
 	methods := serviceDesc.GetMethods()
 
-	if r.inputSpecs == nil {
-		r.inputSpecs = map[string]map[string]*desc.MessageDescriptor{}
-	}
-
-	if r.outputSpecs == nil {
-		r.outputSpecs = map[string]map[string]*desc.MessageDescriptor{}
+	r.ServiceSpecs[name] = serviceMeta{
+		Address:   fmt.Sprintf("%s:%d", address, port),
+		Functions: map[string]funcMeta{},
 	}
 
 	for _, method := range methods {
-		fmt.Println("*", method.GetName())
+		fmt.Println("*****", method.GetName())
 
 		in := method.GetInputType()
-		inFields := in.GetFields()
-		fmt.Println(inFields)
-
 		out := method.GetOutputType()
-		outFields := out.GetFields()
-		fmt.Println(outFields)
 
-		if r.inputSpecs[name] == nil {
-			r.inputSpecs[name] = map[string]*desc.MessageDescriptor{}
+		meta := funcMeta{
+			InDesc:  in,
+			OutDesc: out,
 		}
-
-		if r.outputSpecs[name] == nil {
-			r.outputSpecs[name] = map[string]*desc.MessageDescriptor{}
-		}
-
-		r.inputSpecs[name][method.GetName()] = in
-		r.outputSpecs[name][method.GetName()] = out
+		r.ServiceSpecs[name].Functions[method.GetName()] = meta
 	}
 
 	return nil
 }
 
-func (r *reflectionHandler) Inspection(ctx context.Context, serviceName, functionName string) error {
-	fmt.Println("Inspection", serviceName, functionName)
+func (s *reflectionHandler) Invoke(ctx context.Context, serviceName, funcName string) (any, error) {
+	fmt.Println("Invoke")
 
-	inDesc := r.inputSpecs[serviceName][functionName]
-	desc := inDesc.AsDescriptorProto().ProtoReflect().Descriptor()
-	descProto := protodesc.ToDescriptorProto(desc)
-
-	d, err := json.Marshal(descProto)
-	if err != nil {
-		return err
+	service, ok := r.ServiceSpecs[serviceName]
+	if !ok {
+		return nil, ErrServiceNotFound
 	}
 
-	fmt.Println("**************************")
-	fmt.Println("json", string(d))
+	fMeta := service.Functions[funcName]
+	fmt.Println(fMeta)
 
-	// Reverse
-	newDescProto := descriptorpb.DescriptorProto{}
-	err = json.Unmarshal(d, &newDescProto)
+	// TODO: We should fill here dynamically
+	inSpec := fMeta.InDesc
+
+	newInMsg := dynamicpb.NewMessage(inSpec.UnwrapMessage())
+
+	nameField := inSpec.FindFieldByName("name").UnwrapField()
+	ageField := inSpec.FindFieldByName("age").UnwrapField()
+	newInMsg.Set(nameField, protoreflect.ValueOfString("rootwarp"))
+	newInMsg.Set(ageField, protoreflect.ValueOfInt32(40))
+
+	outSpec := fMeta.OutDesc
+	newOutMsg := dynamicpb.NewMessage(outSpec.UnwrapMessage())
+
+	// Invoke
+	cred := insecure.NewCredentials()
+	conn, err := grpc.Dial(service.Address, grpc.WithTransportCredentials(cred))
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return nil, err
 	}
 
-	fmt.Println("unmarshal", newDescProto.ProtoReflect().Descriptor())
+	defer conn.Close()
 
-	return nil
+	funcURL := fmt.Sprintf("%s/%s", serviceName, funcName)
+	err = conn.Invoke(ctx, funcURL, newInMsg, newOutMsg)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	return newOutMsg, nil
 }
 
 type registrationServer struct {
@@ -147,19 +170,13 @@ type registrationServer struct {
 func (s *registrationServer) RegisterPlugin(ctx context.Context, in *agent.RegisterRequest) (*agent.RegisterResponse, error) {
 	fmt.Println("Register", in.Name, in.Address, in.Port)
 
-	// TODO: Do reflection process
 	err := r.Query(ctx, in.Name, in.Address, int(in.Port))
-	fmt.Println("Query", err)
-	// - Connect
-	// - Get Service
-	// - Get functions and parameters
-	//
-	err = r.Inspection(ctx, in.Name, "Hello")
-	fmt.Println("Inspection", err)
+	if err != nil {
+		return nil, err
+	}
 
-	// TODO: Call back
-	// - Call Hello
-	//
+	// TODO: Testing purpose.
+	r.Invoke(ctx, in.Name, "Hello")
 
 	return &agent.RegisterResponse{
 		Msg: fmt.Sprintf("%s - %s:%d", in.Name, in.Address, in.Port),
@@ -172,7 +189,9 @@ func main() {
 	fmt.Println("Start server")
 
 	go func() {
-		r = &reflectionHandler{}
+		r = &reflectionHandler{
+			ServiceSpecs: map[string]serviceMeta{},
+		}
 	}()
 
 	s := grpc.NewServer()
