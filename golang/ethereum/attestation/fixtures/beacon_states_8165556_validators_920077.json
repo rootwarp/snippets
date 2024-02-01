@@ -1,0 +1,19 @@
+{
+  "execution_optimistic": false,
+  "finalized": true,
+  "data": {
+    "index": "920077",
+    "balance": "32007244418",
+    "status": "active_ongoing",
+    "validator": {
+      "pubkey": "0x827d3fb0bc275064b746a0e5dc6a42d66a6d170fa827a61777bff1af7c5f15e24b19f45ec32f838cdf93c56438b41d15",
+      "withdrawal_credentials": "0x010000000000000000000000e4844e2eb0eb33b73ee456bfa54ec7374c5c68f8",
+      "effective_balance": "32000000000",
+      "slashed": false,
+      "activation_eligibility_epoch": "227361",
+      "activation_epoch": "231161",
+      "exit_epoch": "18446744073709551615",
+      "withdrawable_epoch": "18446744073709551615"
+    }
+  }
+}
