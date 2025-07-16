@@ -48,6 +48,18 @@ func main() {
 		panic(err)
 	}
 
+	fmt.Println("size", ctOut.BinarySize())
+
+	ctOut2 := bgv.NewCiphertext(params, 1, params.MaxLevel())
+	err = eval.Add(ctA, ctOut, ctOut2)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("size", ctOut2.BinarySize())
+
+	// Decrypt test
+
 	ptA2 := dec.DecryptNew(ctA)
 	ptB2 := dec.DecryptNew(ctB)
 	ptOut2 := dec.DecryptNew(ctOut)
