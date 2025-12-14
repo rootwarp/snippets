@@ -17,9 +17,9 @@ import (
 
 // SignatureResult holds the result of distributed signing
 type SignatureResult struct {
-	R          *big.Int
-	S          *big.Int
-	Message    []byte
+	R           *big.Int
+	S           *big.Int
+	Message     []byte
 	MessageHash *big.Int
 }
 
@@ -37,10 +37,11 @@ func RunSigning(keyGenResult *KeyGenResult, message []byte, signerIndices []int)
 	hash := sha256.Sum256(message)
 	msgHash := new(big.Int).SetBytes(hash[:])
 
-	// Create party IDs for signers only
+	// Create party IDs for signers only (copy to avoid modifying original indices)
 	signerPartyIDs := make([]*tss.PartyID, len(signerIndices))
 	for i, idx := range signerIndices {
-		signerPartyIDs[i] = keyGenResult.PartyIDs[idx]
+		orig := keyGenResult.PartyIDs[idx]
+		signerPartyIDs[i] = tss.NewPartyID(orig.Id, orig.Moniker, new(big.Int).SetBytes(orig.Key))
 	}
 	sortedSigners := tss.SortPartyIDs(signerPartyIDs)
 
@@ -209,10 +210,11 @@ func SignWithNewKeyData(partyShares []*keygen.LocalPartySaveData, partyIDs tss.S
 	hash := sha256.Sum256(message)
 	msgHash := new(big.Int).SetBytes(hash[:])
 
-	// Create party IDs for signers only
+	// Create party IDs for signers only (copy to avoid modifying original indices)
 	signerPartyIDs := make([]*tss.PartyID, len(signerIndices))
 	for i, idx := range signerIndices {
-		signerPartyIDs[i] = partyIDs[idx]
+		orig := partyIDs[idx]
+		signerPartyIDs[i] = tss.NewPartyID(orig.Id, orig.Moniker, new(big.Int).SetBytes(orig.Key))
 	}
 	sortedSigners := tss.SortPartyIDs(signerPartyIDs)
 

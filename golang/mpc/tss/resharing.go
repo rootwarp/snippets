@@ -160,21 +160,22 @@ func RunResharing(keyGenResult *KeyGenResult, config *ReshareConfig) (*ReshareRe
 				return nil, fmt.Errorf("unexpected nil destination in resharing message")
 			}
 
-			// Route to old committee if needed
+			// Route to old committee if needed (match tss-lib test pattern)
 			if msg.IsToOldCommittee() || msg.IsToOldAndNewCommittees() {
-				for _, destP := range dest {
-					if destP.Index < len(oldCommittee) {
-						go sharedPartyUpdater(oldCommittee[destP.Index], msg, errCh)
-					}
+				// Slice to only process old committee destinations
+				oldDest := dest
+				if len(dest) > len(oldCommittee) {
+					oldDest = dest[:len(oldCommittee)]
+				}
+				for _, destP := range oldDest {
+					go sharedPartyUpdater(oldCommittee[destP.Index], msg, errCh)
 				}
 			}
 
 			// Route to new committee if needed
 			if !msg.IsToOldCommittee() || msg.IsToOldAndNewCommittees() {
 				for _, destP := range dest {
-					if destP.Index < len(newCommittee) {
-						go sharedPartyUpdater(newCommittee[destP.Index], msg, errCh)
-					}
+					go sharedPartyUpdater(newCommittee[destP.Index], msg, errCh)
 				}
 			}
 

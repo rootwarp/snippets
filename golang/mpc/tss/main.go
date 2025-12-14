@@ -21,7 +21,7 @@ func main() {
 	// Step 1: Key Generation
 	fmt.Println("STEP 1: Distributed Key Generation")
 	fmt.Println("-" + string(make([]byte, 40)))
-	
+
 	config := DefaultConfig()
 	fmt.Printf("Configuration: %d parties, threshold t=%d (need t+1=%d parties to sign)\n\n",
 		config.PartyCount, config.Threshold, config.Threshold+1)
@@ -36,12 +36,12 @@ func main() {
 	// Step 2: Signing with threshold parties
 	fmt.Println("STEP 2: Distributed Signing")
 	fmt.Println("-" + string(make([]byte, 40)))
-	
+
 	message := []byte("Hello, MPC World!")
-	
+
 	// Sign with parties 0 and 1 (2 parties, meeting threshold+1 = 2)
 	signerIndices := []int{0, 1}
-	fmt.Printf("Signing with parties %v (threshold requires %d)\n\n", 
+	fmt.Printf("Signing with parties %v (threshold requires %d)\n\n",
 		[]int{1, 2}, config.Threshold+1) // Display 1-indexed
 
 	sigResult, err := RunSigning(keyGenResult, message, signerIndices)
@@ -54,7 +54,7 @@ func main() {
 	// Step 3: Verify signature
 	fmt.Println("STEP 3: Signature Verification")
 	fmt.Println("-" + string(make([]byte, 40)))
-	
+
 	valid := VerifySignature(keyGenResult, sigResult)
 	if valid {
 		fmt.Println("✓ Signature verified successfully!")
@@ -67,7 +67,7 @@ func main() {
 	// Step 4: Sign with different party combination
 	fmt.Println("STEP 4: Sign with Different Party Combination")
 	fmt.Println("-" + string(make([]byte, 40)))
-	
+
 	message2 := []byte("Second message for signing")
 	signerIndices2 := []int{1, 2} // Parties 2 and 3
 	fmt.Printf("Signing with parties %v\n\n", []int{2, 3})
@@ -103,10 +103,10 @@ func main() {
 	// Step 6: Sign with new shares
 	fmt.Println("STEP 6: Sign with New Shares (After Resharing)")
 	fmt.Println("-" + string(make([]byte, 40)))
-	
+
 	message3 := []byte("Message signed with reshared keys")
 	signerIndices3 := []int{0, 1}
-	
+
 	sigResult3, err := SignWithNewKeyData(
 		reshareResult.NewPartyShares,
 		reshareResult.NewPartyIDs,
